@@ -36,24 +36,28 @@ jobs:
           if [ "$CHECK" = "checkpoint2" ]; then
             docker images git-docker-app:test
             docker run -d --name app-test -p 8080:8000 git-docker-app:test
-            curl -fsS http://localhost:8080
+            sleep 2
+            curl --retry 10 --retry-connrefused --retry-delay 1 -fsS http://localhost:8080
             docker ps --filter name=app-test
             docker logs app-test
             docker inspect app-test --format "{{json .NetworkSettings.Ports}}"
             docker stop app-test
             docker start app-test
-            curl -fsS http://localhost:8080
+            sleep 2
+            curl --retry 10 --retry-connrefused --retry-delay 1 -fsS http://localhost:8080
             docker rm -f app-test
             docker ps -a --filter name=app-test
           elif [ "$CHECK" = "checkpoint3" ]; then
             docker run -d --name app-test -p 8080:8000 git-docker-app:test
-            curl -fsS http://localhost:8080
+            sleep 2
+            curl --retry 10 --retry-connrefused --retry-delay 1 -fsS http://localhost:8080
             docker logs app-test
             docker rm -f app-test
             docker ps -a --filter name=app-test
           elif [ "$CHECK" = "final-network" ]; then
             docker network create app-net
             docker run -d --name app-test --network app-net git-docker-app:test
+            sleep 2
             docker run --rm --name network-test --network app-net curlimages/curl:8.5.0 http://app-test:8000
             docker rm -f app-test
             docker ps -a --filter name=network-test
