@@ -1,0 +1,64 @@
+name: Docker Lab Runner
+
+on:
+  workflow_dispatch:
+    inputs:
+      check:
+        description: "Which Docker verification set to run"
+        required: true
+        type: choice
+        options:
+          - checkpoint2
+          - checkpoint3
+          - final-network
+
+jobs:
+  docker-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Show Docker environment
+        run: |
+          set -euxo pipefail
+          docker --version
+          docker info --format "{{.ServerVersion}}"
+          git status
+          git branch --show-current
+      - name: Run Docker verification
+        env:
+          CHECK: ${{ inputs.check }}
+        run: |
+          set -euxo pipefail
+          docker rm -f app-test 2>/dev/null || true
+          docker network rm app-net 2>/dev/null || true
+          docker build -t git-docker-app:test .
+
+          if [ "$CHECK" = "checkpoint2" ]; then
+            docker images git-docker-app:test
+            docker run -d --name app-test -p 8080:8000 git-docker-app:test
+            curl -fsS http://localhost:8080
+            docker ps --filter name=app-test
+            docker logs app-test
+            docker inspect app-test --format "{{json .NetworkSettings.Ports}}"
+            docker stop app-test
+            docker start app-test
+            curl -fsS http://localhost:8080
+            docker rm -f app-test
+            docker ps -a --filter name=app-test
+          elif [ "$CHECK" = "checkpoint3" ]; then
+            docker run -d --name app-test -p 8080:8000 git-docker-app:test
+            curl -fsS http://localhost:8080
+            docker logs app-test
+            docker rm -f app-test
+            docker ps -a --filter name=app-test
+          elif [ "$CHECK" = "final-network" ]; then
+            docker network create app-net
+            docker run -d --name app-test --network app-net git-docker-app:test
+            docker run --rm --name network-test --network app-net curlimages/curl:8.5.0 http://app-test:8000
+            docker rm -f app-test
+            docker ps -a --filter name=network-test
+            docker network rm app-net
+          else
+            echo "Unknown check: $CHECK" >&2
+            exit 1
+          fi
